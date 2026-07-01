@@ -51,6 +51,7 @@ _NOISE_PREFIXES = (
     "<ide_opened_file>",           # IDE "user opened a file" context
     "<local-command-stdout>",      # output of a slash/bash command, injected
     "[Request interrupted by user",  # interruption markers
+    "<command-message>",           # slash-command XML expansion (clean /x form is kept)
 )
 
 
