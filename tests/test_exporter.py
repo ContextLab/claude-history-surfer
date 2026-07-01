@@ -58,6 +58,56 @@ class ExporterTest(unittest.TestCase):
         self.assertIn("<!-- /surfer:prompt -->", md)
         self.assertTrue(md.endswith("\n"))
 
+    def _roundtrip_rows(self):
+        return [
+            {"id": "s:1", "session_id": "s", "seq": 1, "ts": "2026-06-01T10:00:00Z",
+             "cwd": "/p", "prompt": "plain prompt", "tags": ["x"], "favorite": True,
+             "is_command": False, "attachments": []},
+            {"id": "s:2", "session_id": "s", "seq": 2, "ts": "2026-06-02T10:00:00Z",
+             "cwd": "/p", "prompt": "with a fence:\n```python\nprint('hi')\n```\nend",
+             "tags": [], "favorite": False, "is_command": False, "attachments": []},
+            {"id": "s:3", "session_id": "s", "seq": 3, "ts": "2026-06-03T10:00:00Z",
+             "cwd": "/p", "prompt": "\nleading and trailing newline\n",
+             "tags": [], "favorite": False, "is_command": False, "attachments": []},
+            {"id": "s:4", "session_id": "s", "seq": 4, "ts": "2026-06-04T10:00:00Z",
+             "cwd": "/p", "prompt": "unicode: café ✅ 日本語", "tags": [], "favorite": False,
+             "is_command": False, "attachments": []},
+        ]
+
+    def test_markdown_round_trip_is_lossless(self):
+        recs = self.exporter.build_export_records(self._roundtrip_rows())
+        meta = {"version": 1, "exported_at": "t", "scope": "project",
+                "filters": {}, "count": len(recs)}
+        md = self.exporter.to_markdown(recs, meta)
+        parsed = self.exporter.parse_export_text(md)
+        self.assertEqual([p["prompt"] for p in parsed], [r["prompt"] for r in recs])
+        self.assertEqual(parsed[0]["tags"], ["x"])
+        self.assertTrue(parsed[0]["favorite"])
+        self.assertFalse(parsed[1]["favorite"])
+        self.assertEqual([p["index"] for p in parsed], [0, 1, 2, 3])
+
+    def test_json_round_trip(self):
+        recs = self.exporter.build_export_records(self._roundtrip_rows())
+        meta = {"version": 1, "exported_at": "t", "scope": "project",
+                "filters": {}, "count": len(recs)}
+        js = self.exporter.to_json(recs, meta)
+        parsed = self.exporter.parse_export_text(js)
+        self.assertEqual([p["prompt"] for p in parsed], [r["prompt"] for r in recs])
+
+    def test_parse_export_file(self):
+        recs = self.exporter.build_export_records(self._roundtrip_rows())
+        meta = {"version": 1, "exported_at": "t", "scope": "project",
+                "filters": {}, "count": len(recs)}
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False,
+                                         encoding="utf-8") as tf:
+            tf.write(self.exporter.to_markdown(recs, meta))
+            path = tf.name
+        try:
+            parsed = self.exporter.parse_export_file(path)
+            self.assertEqual(len(parsed), 4)
+        finally:
+            os.unlink(path)
+
 
 if __name__ == "__main__":
     unittest.main()

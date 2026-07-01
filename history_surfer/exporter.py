@@ -65,3 +65,43 @@ def to_markdown(records, meta):
         out.append("<!-- /surfer:prompt -->")
         out.append("")
     return "\n".join(out).rstrip() + "\n"
+
+
+_BLOCK_RE = re.compile(
+    r"<!-- surfer:prompt (?P<attrs>.*?) -->\n(?P<text>.*?)\n<!-- /surfer:prompt -->",
+    re.DOTALL)
+
+
+def _coerce_attrs(attrs):
+    d = {}
+    for tok in attrs.split():
+        if "=" in tok:
+            k, v = tok.split("=", 1)
+            d[k] = v
+    idx = d.get("index", "")
+    return {
+        "index": int(idx) if idx.lstrip("-").isdigit() else None,
+        "id": d.get("id"),
+        "ts": d.get("ts"),
+        "favorite": d.get("favorite") == "true",
+        "tags": d["tags"].split(",") if d.get("tags") else [],
+    }
+
+
+def parse_export_text(text):
+    """Parse a surfer-produced export (JSON or Markdown) into prompt records."""
+    if text.lstrip().startswith("{"):
+        return json.loads(text).get("prompts", [])
+    records = []
+    for m in _BLOCK_RE.finditer(text):
+        rec = _coerce_attrs(m.group("attrs"))
+        rec["prompt"] = m.group("text")
+        records.append(rec)
+    for i, rec in enumerate(records):
+        if rec.get("index") is None:
+            rec["index"] = i
+    return records
+
+
+def parse_export_file(path):
+    return parse_export_text(Path(path).read_text(encoding="utf-8"))
