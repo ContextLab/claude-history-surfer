@@ -169,8 +169,10 @@ Semantics (**as chosen**):
   then 3,4,5.
 - **Duplicates are kept:** a repeated index re-runs that prompt again.
 - **Out-of-range indices warn and are skipped:** print a warning to **stderr**
-  and drop them; never abort. (An empty result after warnings is a hard error
-  only if *nothing* selectable remains.)
+  and drop them; never abort. If the selection ends up **empty** (every index
+  out of range), print the warnings and submit **nothing** to `claude` — a clean
+  no-op replay, *not* an error (same behavior as when only some indices are out
+  of range).
 - `--first N` ≡ `0-(N-1)`; `--last N` ≡ `(count-N)-(count-1)` (clamped at 0).
 
 Signature: `parse_selection(spec: str, count: int) -> tuple[list[int], list[str]]`
@@ -248,6 +250,8 @@ files still exist. Pasted images / large-text blobs are **not** re-attached.
   warnings, `--first/--last`, empty/garbage tokens.
 - **Replay dry-run:** assert the exact `claude` argv sequence and prompt order
   for a selection, with no process spawned.
+- **Empty selection:** a selection where every index is out of range prints
+  warnings, spawns no process, and exits cleanly (no error).
 - **Replay live (one call):** a single real `claude -p` round-trip to confirm the
   `--session-id` → `--resume` handshake actually continues a session.
 - **CLI wiring:** `surfer export`/`surfer replay --dry-run` end-to-end against a
