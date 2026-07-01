@@ -35,7 +35,12 @@ class StoreTest(unittest.TestCase):
     def test_slug(self):
         self.assertEqual(self.store.slugify_cwd("/Users/jmanning/foo"),
                          "-Users-jmanning-foo")
-        self.assertEqual(self.store.slugify_cwd("/a/b.c"), "-a-b.c")
+        # matches Claude: every non-alphanumeric char -> '-' (dots, spaces, parens)
+        self.assertEqual(self.store.slugify_cwd("/a/b.c"), "-a-b-c")
+        self.assertEqual(self.store.slugify_cwd("/x/contextlab.github.io"),
+                         "-x-contextlab-github-io")
+        self.assertEqual(self.store.slugify_cwd("/p/Mac (2)/Desktop"),
+                         "-p-Mac--2--Desktop")
 
     def test_append_and_load(self):
         self.store.append_prompt(self._prompt(1, "hello world"))

@@ -29,9 +29,11 @@ from . import config
 def slugify_cwd(cwd):
     """Turn a working-directory path into a filesystem-safe slug.
 
-    Mirrors Claude Code's own scheme for the common case (``/`` -> ``-``)."""
-    s = re.sub(r"[/\\]", "-", cwd or "")
-    s = re.sub(r"[^A-Za-z0-9._-]", "-", s)
+    Mirrors Claude Code's own scheme exactly: every non-alphanumeric character
+    (``/``, ``.``, space, parens, ...) becomes ``-`` (no collapsing of runs).
+    This keeps live-captured prompts and imported history for the same project
+    in the same folder, and aligns with ~/.claude/projects/<slug>/."""
+    s = re.sub(r"[^a-zA-Z0-9]", "-", cwd or "")
     return s or "unknown"
 
 
@@ -284,6 +286,13 @@ def load_project(slug, include_deleted=False):
         out = [m for m in out if not m["deleted"]]
     out.sort(key=lambda m: (m.get("ts", ""), m.get("seq") or 0))
     return out
+
+
+def iter_prompt_records(slug):
+    """Raw (un-merged) prompt records for a project, in file order.
+
+    Used by the hook to align transcript messages with captured prompts."""
+    return _read_jsonl(_paths(slug)["prompts"])
 
 
 def iter_slugs():
