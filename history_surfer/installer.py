@@ -155,8 +155,14 @@ def install(app_home, claude_dir, bin_dir, python, data_dir=None):
     report["command"] = _symlink_force(app_home / "commands" / "history.md",
                                        claude_dir / "commands" / "history.md")
 
-    # 4. data dir
-    dd = Path(data_dir) if data_dir else (claude_dir / "history-surfer")
+    # 4. data dir — resolve the same way config.data_dir() does, so the dir the
+    #    installer scaffolds is exactly the one the hook/CLI/import will use.
+    if data_dir:
+        dd = Path(data_dir)
+    elif os.environ.get("CLAUDE_HISTORY_SURFER_DIR"):
+        dd = Path(os.environ["CLAUDE_HISTORY_SURFER_DIR"]).expanduser()
+    else:
+        dd = claude_dir / "history-surfer"
     (dd / "projects").mkdir(parents=True, exist_ok=True)
     (dd / "state").mkdir(parents=True, exist_ok=True)
     (dd / "meta").mkdir(parents=True, exist_ok=True)

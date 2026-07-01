@@ -126,6 +126,17 @@ class InstallerTest(unittest.TestCase):
         # data dir left intact
         self.assertTrue((self.claude / "history-surfer" / "projects").is_dir())
 
+    def test_data_dir_honors_env_override(self):
+        env_dir = Path(self.tmp) / "custom-data"
+        os.environ["CLAUDE_HISTORY_SURFER_DIR"] = str(env_dir)
+        try:
+            self.installer.install(REPO, self.claude, self.bin, sys.executable)
+            # scaffolded at the env location, matching config.data_dir()
+            self.assertTrue((env_dir / "projects").is_dir())
+            self.assertFalse((self.claude / "history-surfer").exists())
+        finally:
+            os.environ.pop("CLAUDE_HISTORY_SURFER_DIR", None)
+
     def test_end_to_end_setup_script(self):
         """Run scripts/setup.py as a real subprocess against temp dirs."""
         import subprocess

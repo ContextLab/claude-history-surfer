@@ -12,3 +12,6 @@ venv/
 
 # OS
 .DS_Store
+
+# tooling state (not part of the project)
+.omc/
