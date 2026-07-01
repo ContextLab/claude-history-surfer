@@ -1,0 +1,14 @@
+# Prompt data must never be committed (it can contain secrets you pasted).
+data/
+*.local
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# OS
+.DS_Store
