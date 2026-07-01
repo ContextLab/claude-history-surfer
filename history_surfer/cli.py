@@ -274,6 +274,23 @@ def cmd_tui(args):
     return tui.run(all_projects=args.all)
 
 
+def cmd_replay(args):
+    from . import exporter, replay
+    records = exporter.parse_export_file(args.file)
+    count = len(records)
+    indices, warnings = replay.select_indices(
+        count, select=args.select, first=args.first, last=args.last)
+    for w in warnings:
+        print("warning: %s" % w, file=sys.stderr)
+    if not indices:
+        print("Nothing to replay (0 of %d prompts selected)." % count,
+              file=sys.stderr)
+        return 0
+    return replay.run_replay(records, indices, session_id=args.session_id,
+                             model=args.model, dry_run=args.dry_run,
+                             out=args.output)
+
+
 def _export_meta(args, count):
     return {
         "version": 1,
@@ -386,6 +403,21 @@ def build_parser():
     sp = sub.add_parser("tui", help="launch the interactive browser")
     sp.add_argument("--all", action="store_true")
     sp.set_defaults(func=cmd_tui)
+
+    sp = sub.add_parser("replay",
+                        help="replay an exported file into a Claude Code session")
+    sp.add_argument("file", help="a surfer-produced .json or .md export")
+    g = sp.add_mutually_exclusive_group()
+    g.add_argument("--select", help="e.g. 0,3-7,10- (order = execution order)")
+    g.add_argument("--first", type=int, help="replay the first N prompts")
+    g.add_argument("--last", type=int, help="replay the last N prompts")
+    sp.add_argument("--dry-run", action="store_true", dest="dry_run",
+                    help="print what would be sent; spawn nothing")
+    sp.add_argument("--model", help="passthrough to `claude --model`")
+    sp.add_argument("--session-id", dest="session_id",
+                    help="use/resume a specific session (default: new uuid)")
+    sp.add_argument("-o", "--output", help="also save the exchange to Markdown")
+    sp.set_defaults(func=cmd_replay)
 
     return p
 

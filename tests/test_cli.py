@@ -161,6 +161,22 @@ class CliTest(unittest.TestCase):
         self.assertIn("fix the vector field bug", out)
         self.assertNotIn("add tests for the parser", out)
 
+    def test_replay_dry_run_from_export(self):
+        # export current project to a file, then dry-run replay it
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        rc, out = self.run_cli(["replay", path, "--dry-run", "--select", "0"])
+        self.assertEqual(rc, 0)
+        self.assertIn("claude", out)
+        self.assertIn("-p", out)
+
+    def test_replay_empty_selection_is_noop(self):
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        rc, out = self.run_cli(["replay", path, "--select", "999", "--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("$ claude", out)  # nothing planned/spawned
+
 
 if __name__ == "__main__":
     unittest.main()
