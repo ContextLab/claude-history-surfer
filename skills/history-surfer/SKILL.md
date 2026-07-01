@@ -15,9 +15,10 @@ Run these with the Bash tool and read the JSON:
 
 | Goal | Command |
 |-|-|
-| Search current project | `surfer search "<query>" --json` |
-| Search all projects | `surfer search "<query>" --all --json` |
-| Recent prompts | `surfer list --all --limit 20 --json` |
+| Search **current project** (default) | `surfer search "<query>" --json` |
+| Recent prompts, **current project** (default) | `surfer list --limit 20 --json` |
+| Search across **all** projects (only if asked) | `surfer search "<query>" --all --json` |
+| Recent across **all** projects (only if asked) | `surfer list --all --limit 20 --json` |
 | Full detail + attachments | `surfer show <id> --json` |
 | Only favorites / a tag | add `--favorites` or `--tag <tag>` |
 | Regex search | add `--regex` |
@@ -26,6 +27,10 @@ Each result object has: `id` (`session:seq`), `ts`, `cwd`, `prompt`, `tags`,
 `favorite`, and `attachments` (each with `kind`, `stored` path, `bytes`).
 
 ## Guidance
+- **Default to the CURRENT project.** `surfer` scopes to the project you're in
+  (the session's working directory) unless you pass `--all`. Only add `--all`
+  when the user explicitly asks about *other* projects, *all/any* projects, or
+  "across projects." Never add `--all` by default.
 - Prefer `--json`, then summarize concisely (id, date, project, a snippet).
 - Use `surfer show <id>` to pull the full text or attachment paths for one prompt.
 - If `surfer` is not found, tell the user to install claude-history-surfer

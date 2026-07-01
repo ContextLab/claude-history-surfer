@@ -166,9 +166,14 @@ def cmd_show(args):
 
 
 def cmd_stats(args):
+    if getattr(args, "all", False):
+        slugs = list(store.iter_slugs())
+    else:
+        proj = getattr(args, "project", None)
+        slugs = [store.slugify_cwd(os.path.abspath(proj) if proj else os.getcwd())]
     total = 0
     per = []
-    for slug in store.iter_slugs():
+    for slug in slugs:
         rows = store.load_project(slug, include_deleted=True)
         live = [r for r in rows if not r.get("deleted")]
         favs = [r for r in live if r.get("favorite")]
@@ -178,7 +183,8 @@ def cmd_stats(args):
     per.sort(key=lambda t: -t[1])
     for slug, n, favs, atts in per:
         print("%6d  %s  (%d ★, %d 📎)" % (n, slug, favs, atts))
-    print("\n%d prompt(s) across %d project(s)." % (total, len(per)), file=sys.stderr)
+    scope = "%d project(s)" % len(per) if getattr(args, "all", False) else "current project"
+    print("\n%d prompt(s) across %s." % (total, scope), file=sys.stderr)
     return 0
 
 
@@ -373,7 +379,8 @@ def build_parser():
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_show)
 
-    sp = sub.add_parser("stats", help="counts per project")
+    sp = sub.add_parser("stats", help="prompt counts (current project; --all for every project)")
+    add_scope(sp)
     sp.set_defaults(func=cmd_stats)
 
     for name, fn, needs_val in [

@@ -82,11 +82,18 @@ class CliTest(unittest.TestCase):
         self.assertIn("attachments:", out)
         self.assertIn("image", out)
 
-    def test_stats(self):
-        rc, out = self.run_cli(["stats"])
+    def test_stats_all(self):
+        rc, out = self.run_cli(["stats", "--all"])
         self.assertEqual(rc, 0)
         self.assertIn("-proj-a", out)
         self.assertIn("-proj-b", out)
+
+    def test_stats_current_project_default(self):
+        # default scope = current project; force one for determinism
+        rc, out = self.run_cli(["stats", "--project", "/proj/a"])
+        self.assertEqual(rc, 0)
+        self.assertIn("-proj-a", out)
+        self.assertNotIn("-proj-b", out)
 
     def test_favorite_and_filter(self):
         rc, _ = self.run_cli(["favorite", "sessA:2"])
