@@ -53,7 +53,7 @@ class ExporterTest(unittest.TestCase):
         self.assertIn("# 🏄 Prompt history", md)
         self.assertIn("<!-- surfer-export version=1", md)
         self.assertIn("<!-- surfer:prompt index=0 id=sessA:1", md)
-        self.assertIn("favorite=true tags=graphics -->", md)
+        self.assertIn("favorite=true len=24 tags=graphics -->", md)
         self.assertIn("fix the vector field bug", md)
         self.assertIn("<!-- /surfer:prompt -->", md)
         self.assertTrue(md.endswith("\n"))
@@ -107,6 +107,20 @@ class ExporterTest(unittest.TestCase):
             self.assertEqual(len(parsed), 4)
         finally:
             os.unlink(path)
+
+    def test_round_trip_prompt_containing_the_marker(self):
+        rows = [{"id": "s:1", "session_id": "s", "seq": 1,
+                 "ts": "2026-06-01T10:00:00Z", "cwd": "/p",
+                 "prompt": "here is a literal marker <!-- /surfer:prompt --> in my "
+                           "text\nand a fake opener <!-- surfer:prompt index=9 --> too",
+                 "tags": [], "favorite": False, "is_command": False, "attachments": []}]
+        recs = self.exporter.build_export_records(rows)
+        meta = {"version": 1, "exported_at": "t", "scope": "project",
+                "filters": {}, "count": len(recs)}
+        md = self.exporter.to_markdown(recs, meta)
+        parsed = self.exporter.parse_export_text(md)
+        self.assertEqual(len(parsed), 1)
+        self.assertEqual(parsed[0]["prompt"], rows[0]["prompt"])
 
 
 if __name__ == "__main__":
