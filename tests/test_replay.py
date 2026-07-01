@@ -58,5 +58,45 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual(len(warn), 1)
 
 
+class SelectAndArgvTest(unittest.TestCase):
+    def setUp(self):
+        from history_surfer import replay
+        self.replay = replay
+
+    def test_default_selects_all(self):
+        idx, warn = self.replay.select_indices(4)
+        self.assertEqual(idx, [0, 1, 2, 3])
+        self.assertEqual(warn, [])
+
+    def test_first(self):
+        idx, _ = self.replay.select_indices(10, first=3)
+        self.assertEqual(idx, [0, 1, 2])
+
+    def test_first_clamped(self):
+        idx, _ = self.replay.select_indices(2, first=5)
+        self.assertEqual(idx, [0, 1])
+
+    def test_last(self):
+        idx, _ = self.replay.select_indices(10, last=3)
+        self.assertEqual(idx, [7, 8, 9])
+
+    def test_last_clamped(self):
+        idx, _ = self.replay.select_indices(2, last=5)
+        self.assertEqual(idx, [0, 1])
+
+    def test_select_delegates(self):
+        idx, _ = self.replay.select_indices(8, select="5-,0")
+        self.assertEqual(idx, [5, 6, 7, 0])
+
+    def test_argv_first_uses_session_id(self):
+        argv = self.replay.build_claude_argv("hello", "SID", True)
+        self.assertEqual(argv, ["claude", "-p", "hello", "--session-id", "SID"])
+
+    def test_argv_later_uses_resume(self):
+        argv = self.replay.build_claude_argv("hi", "SID", False, model="claude-opus-4-8")
+        self.assertEqual(
+            argv, ["claude", "-p", "hi", "--resume", "SID", "--model", "claude-opus-4-8"])
+
+
 if __name__ == "__main__":
     unittest.main()

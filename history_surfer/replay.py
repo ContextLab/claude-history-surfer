@@ -50,3 +50,22 @@ def parse_selection(spec, count):
             else:
                 warnings.append("index %d out of range (0..%d)" % (i, count - 1))
     return indices, warnings
+
+
+def select_indices(count, select=None, first=None, last=None):
+    if first is not None:
+        return list(range(0, min(first, count))), []
+    if last is not None:
+        return list(range(max(0, count - last), count)), []
+    if select:
+        return parse_selection(select, count)
+    return list(range(count)), []
+
+
+def build_claude_argv(prompt_text, session_id, is_first, model=None):
+    argv = ["claude", "-p", prompt_text]
+    argv += (["--session-id", session_id] if is_first
+             else ["--resume", session_id])
+    if model:
+        argv += ["--model", model]
+    return argv
