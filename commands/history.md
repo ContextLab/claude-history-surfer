@@ -17,3 +17,8 @@ about other projects or across all projects.
 Then present the matching prompts as a short list — id, date, project, and a
 one-line snippet each. If I ask about a specific one, use `surfer show <id>` for
 the full text and attachment paths. Only report what `surfer` actually returns.
+
+Note: `list` shows only the most recent `--limit` (default 30) — it is not the
+whole history. My full prompt history is stored. To go arbitrarily far back, use
+`surfer search` (scans everything), `surfer list --limit 0` (no cap), or
+`surfer tui`; `surfer stats` shows the total count and date span.

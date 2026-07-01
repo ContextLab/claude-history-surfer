@@ -178,11 +178,13 @@ def cmd_stats(args):
         live = [r for r in rows if not r.get("deleted")]
         favs = [r for r in live if r.get("favorite")]
         atts = sum(len(r.get("attachments") or []) for r in live)
-        per.append((slug, len(live), len(favs), atts))
+        dates = sorted((r.get("ts") or "")[:10] for r in live if r.get("ts"))
+        span = ("%s..%s" % (dates[0], dates[-1])) if dates else "—"
+        per.append((slug, len(live), len(favs), atts, span))
         total += len(live)
     per.sort(key=lambda t: -t[1])
-    for slug, n, favs, atts in per:
-        print("%6d  %s  (%d ★, %d 📎)" % (n, slug, favs, atts))
+    for slug, n, favs, atts, span in per:
+        print("%6d  %-21s  %s  (%d ★, %d 📎)" % (n, span, slug, favs, atts))
     scope = "%d project(s)" % len(per) if getattr(args, "all", False) else "current project"
     print("\n%d prompt(s) across %s." % (total, scope), file=sys.stderr)
     return 0

@@ -94,6 +94,15 @@ class CliTest(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("-proj-a", out)
         self.assertNotIn("-proj-b", out)
+        # date span is shown so history depth is visible at a glance
+        self.assertIn("2026-06-01..2026-06-03", out)
+
+    def test_list_limit_zero_shows_all(self):
+        # --limit 0 disables the recent-N cap (full depth)
+        rc, out = self.run_cli(["list", "--all", "--limit", "0"])
+        self.assertEqual(rc, 0)
+        self.assertIn("unrelated project prompt", out)   # oldest-scope row present
+        self.assertIn("fix the vector field bug", out)
 
     def test_favorite_and_filter(self):
         rc, _ = self.run_cli(["favorite", "sessA:2"])
