@@ -177,6 +177,35 @@ class CliTest(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertNotIn("$ claude", out)  # nothing planned/spawned
 
+    def test_replay_empty_selection_prints_message(self):
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        out_buf, err_buf = io.StringIO(), io.StringIO()
+        with redirect_stdout(out_buf), redirect_stderr(err_buf):
+            rc = self.cli.main(["replay", path, "--select", "999", "--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertIn("Nothing to replay", err_buf.getvalue())
+
+    def test_replay_dry_run_passes_session_and_model(self):
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        rc, out = self.run_cli(["replay", path, "--select", "0", "--dry-run",
+                                "--session-id", "MYSID", "--model", "claude-opus-4-8"])
+        self.assertEqual(rc, 0)
+        self.assertIn("MYSID", out)
+        self.assertIn("claude-opus-4-8", out)
+
+    def test_replay_select_and_first_mutually_exclusive(self):
+        import io
+        from contextlib import redirect_stderr
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                self.cli.main(["replay", path, "--select", "0", "--first", "1"])
+
 
 if __name__ == "__main__":
     unittest.main()
