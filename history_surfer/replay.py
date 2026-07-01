@@ -6,6 +6,7 @@ installed `claude` CLI headless, keeping one session across prompts.
 """
 
 import subprocess
+import sys
 import uuid
 
 
@@ -69,3 +70,42 @@ def build_claude_argv(prompt_text, session_id, is_first, model=None):
     if model:
         argv += ["--model", model]
     return argv
+
+
+def write_transcript(path, exchanges):
+    from pathlib import Path
+    out = ["# 🏄 Replay transcript", ""]
+    for e in exchanges:
+        out.append("## ▶ Prompt %d" % e["index"])
+        out.append("")
+        out.append(e["prompt"])
+        out.append("")
+        out.append("### Response")
+        out.append("")
+        out.append(e["response"])
+        out.append("")
+    Path(path).write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
+
+
+def run_replay(records, indices, *, session_id=None, model=None,
+               dry_run=False, out=None, runner=subprocess.run):
+    session_id = session_id or str(uuid.uuid4())
+    total = len(indices)
+    exchanges = []
+    for k, idx in enumerate(indices):
+        rec = records[idx]
+        text = rec.get("prompt") or ""
+        argv = build_claude_argv(text, session_id, is_first=(k == 0), model=model)
+        header = "▶ Prompt %d/%d (index %d)" % (k + 1, total, idx)
+        if dry_run:
+            print("%s\n  $ %s" % (header, " ".join(argv)))
+            continue
+        print(header, file=sys.stderr)
+        result = runner(argv, capture_output=True, text=True)
+        response = (getattr(result, "stdout", "") or "").rstrip()
+        print(response)
+        exchanges.append({"index": idx, "prompt": text, "response": response})
+    if out and exchanges:
+        write_transcript(out, exchanges)
+        print("Wrote replay transcript to %s" % out, file=sys.stderr)
+    return 0

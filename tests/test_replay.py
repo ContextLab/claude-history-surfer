@@ -98,5 +98,55 @@ class SelectAndArgvTest(unittest.TestCase):
             argv, ["claude", "-p", "hi", "--resume", "SID", "--model", "claude-opus-4-8"])
 
 
+class RunReplayTest(unittest.TestCase):
+    def setUp(self):
+        from history_surfer import replay
+        self.replay = replay
+        self.records = [{"index": i, "id": "s:%d" % i, "prompt": "p%d" % i,
+                         "tags": [], "favorite": False} for i in range(4)]
+
+    def test_dry_run_spawns_nothing(self):
+        calls = []
+        rc = self.replay.run_replay(
+            self.records, [0, 2], dry_run=True, session_id="SID",
+            runner=lambda *a, **k: calls.append(a) or _Fake(""))
+        self.assertEqual(rc, 0)
+        self.assertEqual(calls, [])  # dry-run never calls the runner
+
+    def test_runner_argv_sequence_and_order(self):
+        calls = []
+
+        def fake_runner(argv, **kw):
+            calls.append(argv)
+            return _Fake("response for %s" % argv[2])
+
+        rc = self.replay.run_replay(
+            self.records, [1, 0, 1], session_id="SID", runner=fake_runner)
+        self.assertEqual(rc, 0)
+        # first call uses --session-id; subsequent use --resume; order preserved
+        self.assertEqual(calls[0], ["claude", "-p", "p1", "--session-id", "SID"])
+        self.assertEqual(calls[1], ["claude", "-p", "p0", "--resume", "SID"])
+        self.assertEqual(calls[2], ["claude", "-p", "p1", "--resume", "SID"])
+
+    def test_transcript_written(self):
+        import tempfile
+        path = tempfile.mktemp(suffix=".md")
+        self.replay.run_replay(
+            self.records, [0], session_id="SID", out=path,
+            runner=lambda argv, **kw: _Fake("hello back"))
+        with open(path, encoding="utf-8") as f:
+            body = f.read()
+        os.unlink(path)
+        self.assertIn("p0", body)
+        self.assertIn("hello back", body)
+
+
+class _Fake:
+    def __init__(self, stdout):
+        self.stdout = stdout
+        self.stderr = ""
+        self.returncode = 0
+
+
 if __name__ == "__main__":
     unittest.main()
