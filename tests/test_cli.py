@@ -138,6 +138,29 @@ class CliTest(unittest.TestCase):
         rc, _ = self.run_cli(["show", "nope:9"])
         self.assertEqual(rc, 1)
 
+    def test_export_markdown_stdout(self):
+        rc, out = self.run_cli(["export", "--project", "/proj/a"])
+        self.assertEqual(rc, 0)
+        self.assertIn("<!-- surfer:prompt", out)
+        self.assertIn("fix the vector field bug", out)
+
+    def test_export_json_to_file(self):
+        path = os.path.join(self.tmp, "out.json")
+        rc, _ = self.run_cli(["export", "--project", "/proj/a",
+                              "--format", "json", "-o", path])
+        self.assertEqual(rc, 0)
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(data["surfer_export"]["scope"], "project")
+        self.assertGreaterEqual(data["surfer_export"]["count"], 3)
+
+    def test_export_respects_filters(self):
+        self.run_cli(["favorite", "sessA:1"])
+        rc, out = self.run_cli(["export", "--project", "/proj/a", "--favorites"])
+        self.assertEqual(rc, 0)
+        self.assertIn("fix the vector field bug", out)
+        self.assertNotIn("add tests for the parser", out)
+
 
 if __name__ == "__main__":
     unittest.main()

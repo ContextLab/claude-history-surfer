@@ -274,6 +274,38 @@ def cmd_tui(args):
     return tui.run(all_projects=args.all)
 
 
+def _export_meta(args, count):
+    return {
+        "version": 1,
+        "exported_at": store.now_iso(),
+        "scope": "all" if getattr(args, "all", False) else "project",
+        "filters": {"query": args.query, "tag": args.tag, "since": args.since,
+                    "favorites": bool(args.favorites),
+                    "all": bool(getattr(args, "all", False))},
+        "count": count,
+    }
+
+
+def cmd_export(args):
+    from . import exporter
+    rows = _filter(_rows_for(args), query=args.query, regex=args.regex,
+                   favorites=args.favorites, tag=args.tag, since=args.since)
+    if args.limit:
+        rows = rows[-args.limit:]
+    records = exporter.build_export_records(rows)
+    meta = _export_meta(args, len(records))
+    text = (exporter.to_json(records, meta) if args.format == "json"
+            else exporter.to_markdown(records, meta))
+    if args.output:
+        from pathlib import Path
+        Path(args.output).write_text(text, encoding="utf-8")
+        print("Exported %d prompt(s) to %s" % (len(records), args.output),
+              file=sys.stderr)
+    else:
+        print(text)
+    return 0
+
+
 # --------------------------------------------------------------------------- #
 # argparse
 # --------------------------------------------------------------------------- #
@@ -298,6 +330,18 @@ def build_parser():
     sp.add_argument("--limit", type=int)
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(func=cmd_search)
+
+    sp = sub.add_parser("export", help="export prompts to Markdown or JSON")
+    sp.add_argument("query", nargs="?")
+    add_scope(sp)
+    sp.add_argument("--regex", action="store_true")
+    sp.add_argument("--favorites", action="store_true")
+    sp.add_argument("--tag")
+    sp.add_argument("--since", help="ISO date, e.g. 2026-06-01")
+    sp.add_argument("--limit", type=int)
+    sp.add_argument("--format", choices=["md", "json"], default="md")
+    sp.add_argument("-o", "--output", help="output file (default: stdout)")
+    sp.set_defaults(func=cmd_export)
 
     sp = sub.add_parser("list", help="list recent prompts")
     add_scope(sp)
