@@ -45,6 +45,19 @@ class ExporterTest(unittest.TestCase):
         self.assertEqual(len(data["prompts"]), 2)
         self.assertEqual(data["prompts"][0]["prompt"], "fix the vector field bug")
 
+    def test_to_markdown_has_markers_and_text(self):
+        recs = self.exporter.build_export_records(self._rows())
+        meta = {"version": 1, "exported_at": "2026-07-01T12:00:00Z",
+                "scope": "project", "filters": {}, "count": len(recs)}
+        md = self.exporter.to_markdown(recs, meta)
+        self.assertIn("# 🏄 Prompt history", md)
+        self.assertIn("<!-- surfer-export version=1", md)
+        self.assertIn("<!-- surfer:prompt index=0 id=sessA:1", md)
+        self.assertIn("favorite=true tags=graphics -->", md)
+        self.assertIn("fix the vector field bug", md)
+        self.assertIn("<!-- /surfer:prompt -->", md)
+        self.assertTrue(md.endswith("\n"))
+
 
 if __name__ == "__main__":
     unittest.main()

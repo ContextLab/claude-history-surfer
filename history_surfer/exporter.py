@@ -36,3 +36,32 @@ def build_export_records(rows):
 def to_json(records, meta):
     return json.dumps({"surfer_export": meta, "prompts": records},
                       ensure_ascii=False, indent=2, default=str)
+
+
+def _human_ts(ts):
+    return (ts or "")[:16].replace("T", " ")
+
+
+def to_markdown(records, meta):
+    scope_label = "all projects" if meta.get("scope") == "all" else "current project"
+    out = ["# 🏄 Prompt history — %s" % scope_label,
+           "<!-- surfer-export version=%s exported=%s scope=%s count=%s -->"
+           % (meta.get("version"), meta.get("exported_at"),
+              meta.get("scope"), meta.get("count")),
+           ""]
+    for r in records:
+        tags = r.get("tags") or []
+        star = " · ★" if r.get("favorite") else ""
+        tagline = (" · " + " ".join("#" + t for t in tags)) if tags else ""
+        out.append("### Prompt %d · %s%s%s"
+                   % (r["index"], _human_ts(r.get("ts")), star, tagline))
+        attrs = "index=%d id=%s ts=%s favorite=%s" % (
+            r["index"], r.get("id"), r.get("ts"),
+            "true" if r.get("favorite") else "false")
+        if tags:
+            attrs += " tags=" + ",".join(tags)
+        out.append("<!-- surfer:prompt %s -->" % attrs)
+        out.append(r.get("prompt") or "")
+        out.append("<!-- /surfer:prompt -->")
+        out.append("")
+    return "\n".join(out).rstrip() + "\n"
