@@ -31,3 +31,8 @@ def build_export_records(rows):
             "attachments": [_att_meta(a) for a in (r.get("attachments") or [])],
         })
     return records
+
+
+def to_json(records, meta):
+    return json.dumps({"surfer_export": meta, "prompts": records},
+                      ensure_ascii=False, indent=2, default=str)

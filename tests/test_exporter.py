@@ -35,6 +35,16 @@ class ExporterTest(unittest.TestCase):
         self.assertEqual(set(att), {"kind", "name", "sha256", "bytes"})
         self.assertEqual(att["sha256"], "cd34")
 
+    def test_to_json_shape(self):
+        recs = self.exporter.build_export_records(self._rows())
+        meta = {"version": 1, "exported_at": "2026-07-01T12:00:00Z",
+                "scope": "project", "filters": {"all": False}, "count": len(recs)}
+        data = json.loads(self.exporter.to_json(recs, meta))
+        self.assertEqual(data["surfer_export"]["version"], 1)
+        self.assertEqual(data["surfer_export"]["count"], 2)
+        self.assertEqual(len(data["prompts"]), 2)
+        self.assertEqual(data["prompts"][0]["prompt"], "fix the vector field bug")
+
 
 if __name__ == "__main__":
     unittest.main()
