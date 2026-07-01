@@ -168,6 +168,10 @@ class TuiPtySmokeTest(unittest.TestCase):
         self.assertTrue(os.WIFEXITED(status), "curses UI did not exit cleanly")
         self.assertEqual(os.WEXITSTATUS(status), 0)
         self.assertIn(b"claude-history-surfer", output)
+        # Colors are initialized: the header/selection use an explicit cyan bar
+        # (SGR 46) rather than relying on A_REVERSE/defaults, which rendered
+        # unreadably (white-on-white) on some terminals. Guards that regression.
+        self.assertIn(b"\x1b[46m", output)
 
 
 if __name__ == "__main__":
