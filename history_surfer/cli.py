@@ -46,6 +46,21 @@ def _filter(rows, query=None, regex=False, favorites=False, tag=None, since=None
     return out
 
 
+def _scope_hint(args, rows, **filter_kw):
+    """When a project-scoped command matches nothing but --all would match,
+    say so on stderr instead of leaving a silently empty result."""
+    if rows or getattr(args, "all", False):
+        return
+    try:
+        n = len(_filter(store.load_all(
+            include_deleted=getattr(args, "include_deleted", False)), **filter_kw))
+    except Exception:
+        return
+    if n:
+        print("0 match(es) in this project, but %d across all projects — "
+              "add --all to widen the search." % n, file=sys.stderr)
+
+
 # --------------------------------------------------------------------------- #
 # formatting
 # --------------------------------------------------------------------------- #
@@ -119,6 +134,8 @@ def _print_full(row):
 def cmd_search(args):
     rows = _filter(_rows_for(args), query=args.query, regex=args.regex,
                    favorites=args.favorites, tag=args.tag, since=args.since)
+    _scope_hint(args, rows, query=args.query, regex=args.regex,
+                favorites=args.favorites, tag=args.tag, since=args.since)
     if args.json:
         import json
         print(json.dumps(rows[-args.limit:] if args.limit else rows,
@@ -130,6 +147,7 @@ def cmd_search(args):
 
 def cmd_list(args):
     rows = _filter(_rows_for(args), favorites=args.favorites, tag=args.tag)
+    _scope_hint(args, rows, favorites=args.favorites, tag=args.tag)
     if args.json:
         import json
         print(json.dumps(rows[-args.limit:] if args.limit else rows,
@@ -185,7 +203,12 @@ def cmd_stats(args):
     per.sort(key=lambda t: -t[1])
     for slug, n, favs, atts, span in per:
         print("%6d  %-21s  %s  (%d ★, %d 📎)" % (n, span, slug, favs, atts))
-    scope = "%d project(s)" % len(per) if getattr(args, "all", False) else "current project"
+    if getattr(args, "all", False):
+        scope = "%d project(s)" % len(per)
+    elif getattr(args, "project", None):
+        scope = "project %s" % slugs[0]
+    else:
+        scope = "current project"
     print("\n%d prompt(s) across %s." % (total, scope), file=sys.stderr)
     return 0
 
@@ -284,7 +307,19 @@ def cmd_tui(args):
 
 def cmd_replay(args):
     from . import exporter, replay
-    records = exporter.parse_export_file(args.file)
+    try:
+        records = exporter.parse_export_file(args.file)
+    except FileNotFoundError:
+        print("Error: no such file: %s" % args.file, file=sys.stderr)
+        return 1
+    except (OSError, ValueError) as exc:
+        print("Error: could not parse %s as a surfer export (%s)"
+              % (args.file, exc), file=sys.stderr)
+        return 1
+    if not isinstance(records, list) or not all(isinstance(r, dict) for r in records):
+        print("Error: %s is not a surfer export (no prompts found)" % args.file,
+              file=sys.stderr)
+        return 1
     count = len(records)
     indices, warnings = replay.select_indices(
         count, select=args.select, first=args.first, last=args.last)
@@ -329,7 +364,10 @@ def cmd_export(args):
                   file=sys.stderr)
             return 1
         try:
-            out_path.write_text(text, encoding="utf-8")
+            # newline="" keeps \r in prompts intact so the export re-imports
+            # byte-identical (universal newlines would break the len= guard).
+            with open(out_path, "w", encoding="utf-8", newline="") as f:
+                f.write(text)
         except OSError as exc:
             print("Error: could not write %r (%s)" % (args.output, exc),
                   file=sys.stderr)

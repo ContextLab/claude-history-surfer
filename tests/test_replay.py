@@ -69,6 +69,13 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual(idx, [0, 1, 2, 3, 4])
         self.assertEqual(warn, [])
 
+    def test_comma_only_selection_warns(self):
+        # regression: "," used to yield 0-of-N with no warning at all
+        idx, warn = self.sel(",", 5)
+        self.assertEqual(idx, [])
+        self.assertEqual(len(warn), 1)
+        self.assertIn("no valid tokens", warn[0])
+
 
 class SelectAndArgvTest(unittest.TestCase):
     def setUp(self):
@@ -117,12 +124,19 @@ class SelectAndArgvTest(unittest.TestCase):
 
     def test_argv_first_uses_session_id(self):
         argv = self.replay.build_claude_argv("hello", "SID", True)
-        self.assertEqual(argv, ["claude", "-p", "hello", "--session-id", "SID"])
+        self.assertEqual(argv, ["claude", "-p", "--session-id", "SID", "--", "hello"])
 
     def test_argv_later_uses_resume(self):
         argv = self.replay.build_claude_argv("hi", "SID", False, model="claude-opus-4-8")
         self.assertEqual(
-            argv, ["claude", "-p", "hi", "--resume", "SID", "--model", "claude-opus-4-8"])
+            argv, ["claude", "-p", "--resume", "SID", "--model", "claude-opus-4-8",
+                   "--", "hi"])
+
+    def test_prompt_starting_with_dash_is_never_a_flag(self):
+        # regression: without the `--` terminator, a historical prompt like
+        # "--help fix the tests" would be parsed as claude CLI flags
+        argv = self.replay.build_claude_argv("--help fix the tests", "SID", True)
+        self.assertEqual(argv[-2:], ["--", "--help fix the tests"])
 
 
 class RunReplayTest(unittest.TestCase):
@@ -145,15 +159,51 @@ class RunReplayTest(unittest.TestCase):
 
         def fake_runner(argv, **kw):
             calls.append(argv)
-            return _Fake("response for %s" % argv[2])
+            return _Fake("response for %s" % argv[-1])
 
         rc = self.replay.run_replay(
             self.records, [1, 0, 1], session_id="SID", runner=fake_runner)
         self.assertEqual(rc, 0)
         # first call uses --session-id; subsequent use --resume; order preserved
-        self.assertEqual(calls[0], ["claude", "-p", "p1", "--session-id", "SID"])
-        self.assertEqual(calls[1], ["claude", "-p", "p0", "--resume", "SID"])
-        self.assertEqual(calls[2], ["claude", "-p", "p1", "--resume", "SID"])
+        self.assertEqual(calls[0], ["claude", "-p", "--session-id", "SID", "--", "p1"])
+        self.assertEqual(calls[1], ["claude", "-p", "--resume", "SID", "--", "p0"])
+        self.assertEqual(calls[2], ["claude", "-p", "--resume", "SID", "--", "p1"])
+
+    def test_nonzero_returncode_aborts_replay(self):
+        # a failed claude call must abort (later prompts depend on the session)
+        # and surface a nonzero exit code — not continue silently
+        import io
+        from contextlib import redirect_stderr
+        calls = []
+
+        def failing_runner(argv, **kw):
+            calls.append(argv)
+            f = _Fake("")
+            f.returncode = 2
+            f.stderr = "session not found"
+            return f
+
+        err = io.StringIO()
+        with redirect_stderr(err):
+            rc = self.replay.run_replay(
+                self.records, [0, 1, 2], session_id="SID", runner=failing_runner)
+        self.assertEqual(rc, 1)
+        self.assertEqual(len(calls), 1)   # aborted after the first failure
+        self.assertIn("session not found", err.getvalue())
+
+    def test_missing_claude_binary_clean_error(self):
+        import io
+        from contextlib import redirect_stderr
+
+        def no_claude(argv, **kw):
+            raise FileNotFoundError("claude")
+
+        err = io.StringIO()
+        with redirect_stderr(err):
+            rc = self.replay.run_replay(
+                self.records, [0], session_id="SID", runner=no_claude)
+        self.assertEqual(rc, 1)
+        self.assertIn("not found", err.getvalue())
 
     def test_transcript_written(self):
         import tempfile

@@ -58,6 +58,8 @@ def parse_selection(spec, count):
                 indices.append(i)
             else:
                 warnings.append("index %d out of range (0..%d)" % (i, count - 1))
+    if not indices and not warnings and s.strip():
+        warnings.append("no valid tokens in selection %r" % spec)
     return indices, warnings
 
 
@@ -74,11 +76,15 @@ def select_indices(count, select=None, first=None, last=None):
 
 
 def build_claude_argv(prompt_text, session_id, is_first, model=None):
-    argv = ["claude", "-p", prompt_text]
+    # `--` terminates option parsing, so a historical prompt that itself starts
+    # with "-" (e.g. "--help me fix this") is always passed as the prompt text,
+    # never interpreted as claude CLI flags.
+    argv = ["claude", "-p"]
     argv += (["--session-id", session_id] if is_first
              else ["--resume", session_id])
     if model:
         argv += ["--model", model]
+    argv += ["--", prompt_text]
     return argv
 
 
@@ -108,10 +114,27 @@ def run_replay(records, indices, *, session_id=None, model=None,
         argv = build_claude_argv(text, session_id, is_first=(k == 0), model=model)
         header = "▶ Prompt %d/%d (index %d)" % (k + 1, total, idx)
         if dry_run:
-            print("%s\n  $ %s" % (header, " ".join(argv)))
+            import shlex
+            print("%s\n  $ %s" % (header, shlex.join(argv)))
             continue
         print(header, file=sys.stderr)
-        result = runner(argv, capture_output=True, text=True)
+        try:
+            result = runner(argv, capture_output=True, text=True)
+        except FileNotFoundError:
+            print("Error: `claude` CLI not found on PATH — install Claude Code "
+                  "to replay prompts.", file=sys.stderr)
+            return 1
+        rc = getattr(result, "returncode", 0)
+        if rc:
+            err = (getattr(result, "stderr", "") or "").strip()
+            print("Error: claude exited with status %d on prompt index %d%s"
+                  % (rc, idx, (":\n" + err) if err else ""), file=sys.stderr)
+            print("Aborting replay — later prompts depend on this session's context.",
+                  file=sys.stderr)
+            if out and exchanges:
+                write_transcript(out, exchanges)
+                print("Wrote partial replay transcript to %s" % out, file=sys.stderr)
+            return 1
         response = (getattr(result, "stdout", "") or "").rstrip()
         print(response)
         exchanges.append({"index": idx, "prompt": text, "response": response})

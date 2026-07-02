@@ -263,6 +263,46 @@ class CliTest(unittest.TestCase):
         self.assertIn("does not exist", err_buf.getvalue())
         self.assertFalse(os.path.exists(bad_path))
 
+    def test_scope_hint_when_other_projects_match(self):
+        import io
+        from contextlib import redirect_stderr
+        err_buf = io.StringIO()
+        with redirect_stderr(err_buf):
+            rc = self.cli.main(["list", "--project", "/proj/nothing-here"])
+        self.assertEqual(rc, 0)
+        self.assertIn("add --all", err_buf.getvalue())
+
+    def test_replay_missing_file_clean_error(self):
+        import io
+        from contextlib import redirect_stderr
+        err_buf = io.StringIO()
+        with redirect_stderr(err_buf):
+            rc = self.cli.main(["replay", os.path.join(self.tmp, "nope.json"),
+                                "--dry-run"])
+        self.assertEqual(rc, 1)
+        self.assertIn("no such file", err_buf.getvalue().lower())
+
+    def test_replay_non_export_json_clean_error(self):
+        import io
+        from contextlib import redirect_stderr
+        bad = os.path.join(self.tmp, "bad.json")
+        with open(bad, "w", encoding="utf-8") as f:
+            f.write('{"prompts": "nope"}')
+        err_buf = io.StringIO()
+        with redirect_stderr(err_buf):
+            rc = self.cli.main(["replay", bad, "--dry-run"])
+        self.assertEqual(rc, 1)
+        self.assertIn("not a surfer export", err_buf.getvalue())
+
+    def test_stats_project_label_names_the_project(self):
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        out_buf, err_buf = io.StringIO(), io.StringIO()
+        with redirect_stdout(out_buf), redirect_stderr(err_buf):
+            rc = self.cli.main(["stats", "--project", "/proj/a"])
+        self.assertEqual(rc, 0)
+        self.assertIn("project -proj-a", err_buf.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

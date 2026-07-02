@@ -96,7 +96,7 @@ everywhere.
 
 For every prompt, in the project you sent it from:
 
-- the full prompt text (including slash commands — nothing is filtered out),
+- the full prompt text (including slash commands you run),
 - **`@file` references** — snapshotted as-sent (content-addressed, so an edit
   later doesn't change what you sent),
 - **pasted images** — extracted from the transcript and saved as real image files,
@@ -105,8 +105,9 @@ For every prompt, in the project you sent it from:
 Harness-injected notifications and command echoes (background task
 notifications, IDE file-open events, slash-command XML expansions, and the
 like) are filtered out by default — only prompts you actually wrote are shown.
-They're still captured on disk and recoverable via the store's
-`include_noise=True` option, in case you ever need them.
+(Noise entries recorded before this filtering existed stay on disk and remain
+recoverable via the store's `include_noise=True` option; new ones are simply
+not recorded.)
 
 Capture is best-effort and completely non-blocking: the hook always exits cleanly
 and never writes to your session, so it can't interfere with a prompt.
@@ -122,7 +123,7 @@ export); add `--all` for every project, or `--project <path>` for a specific one
 | `surfer list [--all] [--favorites] [--tag T] [--limit N] [--json]` | Most recent prompts (`--limit 0` = full history, no recency cap) |
 | `surfer show <id> [--json]` | Full prompt + attachment paths (`id` = `session:seq`, prefix ok) |
 | `surfer export [query] [--all] [--favorites] [--tag T] [--since D] [--format md\|json] [-o FILE]` | Export prompts to Markdown/JSON |
-| `surfer replay <file> [--select S] [--first N] [--last N] [--dry-run] [-o FILE]` | Replay an export into a session |
+| `surfer replay <file> [--select S] [--first N] [--last N] [--dry-run] [--model M] [--session-id U] [-o FILE]` | Replay an export into a session |
 | `surfer stats [--all] [--project P]` | Prompt counts, favorites/attachments, and oldest..newest date span per project (current project by default) |
 | `surfer import-history` | Seed from `~/.claude/history.jsonl` (idempotent) |
 | `surfer tag <id> <tag>` / `surfer untag <id> <tag>` | Add / remove a tag |
@@ -147,8 +148,8 @@ surfer stats --all                     # counts + date span, every project
 `surfer stats --all` output looks like:
 
 ```
-   894  2026-02-23..2026-04-01  -Users-jmanning-mapper  (0 ★, 0 📎)
-    37  2026-06-20..2026-06-21  -Users-surfer-projects-aurora  (2 ★, 0 📎)
+   142  2026-01-05..2026-06-21  -Users-surfer-projects-aurora  (12 ★, 3 📎)
+    37  2026-04-02..2026-06-19  -Users-surfer-projects-tide  (2 ★, 0 📎)
 ```
 
 Curation (tags, favorites, edits, deletes) is stored in a separate append-only
@@ -204,7 +205,8 @@ you write is the order they run**:
 Indices are 0-based (the numbers shown by `surfer export`). Duplicates re-run a
 prompt; out-of-range indices print a warning and are skipped. `--first N` and
 `--last N` are shortcuts. Add `-o transcript.md` to save the prompt/response
-exchange.
+exchange, `--model <model>` to pick the model, and `--session-id <uuid>` to
+name (or resume) the session instead of generating a fresh one.
 
 > **Note (v1):** replay sends prompt **text** as it was originally sent. `@file`
 > references re-resolve live if those files still exist; pasted images and large

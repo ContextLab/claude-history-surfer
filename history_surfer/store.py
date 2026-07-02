@@ -52,6 +52,7 @@ _NOISE_PREFIXES = (
     "<local-command-stdout>",      # output of a slash/bash command, injected
     "[Request interrupted by user",  # interruption markers
     "<command-message>",           # slash-command XML expansion (clean /x form is kept)
+    "<command-name>",              # name-first variant of the same expansion
 )
 
 

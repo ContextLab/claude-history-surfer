@@ -58,6 +58,7 @@ class StoreTest(unittest.TestCase):
                   "<local-command-stdout>Set model</local-command-stdout>",
                   "[Request interrupted by user]",
                   "<command-message>history-surfer</command-message> <command-name>/x</command-name>",
+                  "<command-name>/model</command-name>\n<command-message>model</command-message>",
                   "  <task-notification> leading whitespace"]:
             self.assertTrue(self.store.is_noise(t), t)
         # real prompts (incl. one that merely MENTIONS the tag) are not noise

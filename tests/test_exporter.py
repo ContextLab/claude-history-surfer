@@ -122,6 +122,28 @@ class ExporterTest(unittest.TestCase):
         self.assertEqual(len(parsed), 1)
         self.assertEqual(parsed[0]["prompt"], rows[0]["prompt"])
 
+    def test_crlf_round_trip_through_file(self):
+        # regression: universal-newline translation on read shrank \r\n prompts
+        # below the recorded len=, corrupting the round-trip
+        rows = [{"id": "s:1", "session_id": "s", "seq": 1,
+                 "ts": "2026-06-01T10:00:00Z", "cwd": "/p",
+                 "prompt": "windows line\r\nsecond line\rlone cr",
+                 "tags": [], "favorite": False, "is_command": False,
+                 "attachments": []}]
+        recs = self.exporter.build_export_records(rows)
+        meta = {"version": 1, "exported_at": "t", "scope": "project",
+                "filters": {}, "count": 1}
+        md = self.exporter.to_markdown(recs, meta)
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False,
+                                         encoding="utf-8", newline="") as tf:
+            tf.write(md)
+            path = tf.name
+        try:
+            parsed = self.exporter.parse_export_file(path)
+        finally:
+            os.unlink(path)
+        self.assertEqual(parsed[0]["prompt"], rows[0]["prompt"])
+
 
 if __name__ == "__main__":
     unittest.main()

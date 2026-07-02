@@ -150,7 +150,7 @@ curl -fsSL https://raw.githubusercontent.com/ContextLab/claude-history-surfer/ma
 
 ## 8. Privacy
 
-Prompt **data** is local-only and never pushed (gitignored; the real store lives under `~/.claude/`). It can contain secrets the user pasted; the README documents this and how to purge (`surfer delete --purge`, or remove the store). Only **code** is committed.
+Prompt **data** is local-only and never pushed (gitignored; the real store lives under `~/.claude/`). It can contain secrets the user pasted; the README documents this and how to purge (delete `~/.claude/history-surfer`). Only **code** is committed.
 
 ## 9. Testing (real, no mocks — per project convention)
 

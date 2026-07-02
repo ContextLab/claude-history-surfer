@@ -7,7 +7,6 @@ verbatim text in HTML-comment markers so it re-imports losslessly.
 import json
 import re
 import sys
-from pathlib import Path
 
 
 def _att_meta(a):
@@ -44,7 +43,10 @@ def _human_ts(ts):
 
 
 def to_markdown(records, meta):
-    scope_label = "all projects" if meta.get("scope") == "all" else "current project"
+    if meta.get("scope") == "all":
+        scope_label = "all projects"
+    else:
+        scope_label = (meta.get("filters") or {}).get("project") or "current project"
     out = ["# 🏄 Prompt history — %s" % scope_label,
            "<!-- surfer-export version=%s exported=%s scope=%s count=%s -->"
            % (meta.get("version"), meta.get("exported_at"),
@@ -139,4 +141,7 @@ def parse_export_text(text):
 
 
 def parse_export_file(path):
-    return parse_export_text(Path(path).read_text(encoding="utf-8"))
+    # newline="" disables universal-newline translation: a prompt containing
+    # \r\n must come back byte-identical or the len= guard would misalign.
+    with open(path, "r", encoding="utf-8", newline="") as f:
+        return parse_export_text(f.read())
