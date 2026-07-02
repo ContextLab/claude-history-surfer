@@ -1,5 +1,6 @@
 """Real tests for history_surfer.replay (selection spec + claude driving)."""
 import os
+import shutil
 import unittest
 
 
@@ -146,6 +147,33 @@ class _Fake:
         self.stdout = stdout
         self.stderr = ""
         self.returncode = 0
+
+
+@unittest.skipUnless(os.environ.get("CLAUDE_HISTORY_SURFER_LIVE") == "1"
+                     and shutil.which("claude"),
+                     "set CLAUDE_HISTORY_SURFER_LIVE=1 with claude installed")
+class LiveReplayTest(unittest.TestCase):
+    def test_session_continuity(self):
+        from history_surfer import replay
+        records = [
+            {"index": 0, "prompt": "Remember the codeword BANANA. Reply 'ok'."},
+            {"index": 1, "prompt": "What codeword did I ask you to remember? "
+                                   "Reply with just the word."},
+        ]
+        captured = []
+        real = __import__("subprocess").run
+
+        def tap(argv, **kw):
+            r = real(argv, **kw)
+            captured.append((argv, getattr(r, "stdout", "")))
+            return r
+
+        rc = replay.run_replay(records, [0, 1], runner=tap)
+        self.assertEqual(rc, 0)
+        # first uses --session-id, second uses --resume (same id)
+        self.assertIn("--session-id", captured[0][0])
+        self.assertIn("--resume", captured[1][0])
+        self.assertIn("BANANA", captured[1][1].upper())
 
 
 if __name__ == "__main__":
