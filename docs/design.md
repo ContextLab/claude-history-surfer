@@ -2,6 +2,8 @@
 
 _Last updated: 2026-06-30_
 
+> Export/replay design detail: `docs/superpowers/specs/2026-07-01-export-replay-readme-design.md`.
+
 ## 1. Goal
 
 Maintain a durable, searchable log of **every prompt** sent to Claude Code, across **all projects**, including **files, images, and large pasted text** the user attaches — and make past prompts **easy to recall, browse, curate, and edit** from inside any Claude Code session.
@@ -21,6 +23,11 @@ The raw data mostly exists but there is no clean, per-project, attachment-aware,
 - Capture attached **files** referenced via `@path` mentions (snapshot as-sent).
 - Capture pasted **images** (extracted from the transcript).
 - Capture **large pasted text** (the transcript inlines it; captured as canonical prompt text, and stored as a text blob when very large).
+- **Export** a selected set of prompts to a shareable file — **Markdown** (default,
+  round-trippable) or **JSON** — reusing the CLI's scope/filters (`surfer export`).
+- **Replay** an exported file into a fresh Claude Code session, playing prompts
+  one at a time via the headless `claude` CLI, with flexible selection
+  (`surfer replay`).
 - Per-project organization; local-only data.
 - **Recall + browse + curate:** `surfer` CLI, a **curses TUI browser**, a Claude skill, and a `/history` slash command.
 - **Curation:** tag prompts, mark favorites, edit prompt text, and prune (delete) prompts — via a non-destructive overlay.
