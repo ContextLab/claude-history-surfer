@@ -1,8 +1,11 @@
 """Replay exported prompts into a Claude Code session via the `claude` CLI.
 
 parse_selection turns a spec like "0,3-7,10-" into an ordered index list
-(duplicates kept; out-of-range warns and is skipped). run_replay drives the
-installed `claude` CLI headless, keeping one session across prompts.
+(duplicates kept; out-of-range warns and is skipped; reversed ranges like
+"4-2" warn and are skipped rather than silently matching nothing). An
+explicit empty spec ("") selects nothing; omitting --select entirely
+selects everything. run_replay drives the installed `claude` CLI headless,
+keeping one session across prompts.
 """
 
 import subprocess
@@ -34,6 +37,11 @@ def parse_selection(spec, count):
                 warnings.append(
                     "selection %r starts past last index %d" % (tok, count - 1))
                 continue
+            if end < start:
+                warnings.append(
+                    "selection %r is a reversed range (start %d > end %d); skipped"
+                    % (tok, start, end))
+                continue
             if end > count - 1:
                 warnings.append(
                     "selection %r truncated at last index %d" % (tok, count - 1))
@@ -58,7 +66,9 @@ def select_indices(count, select=None, first=None, last=None):
         return list(range(0, min(first, count))), []
     if last is not None:
         return list(range(max(0, count - last), count)), []
-    if select:
+    if select is not None:
+        if not select.strip():
+            return [], ["empty --select given; nothing selected"]
         return parse_selection(select, count)
     return list(range(count)), []
 

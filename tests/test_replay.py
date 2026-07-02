@@ -58,6 +58,17 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual(idx, [])
         self.assertEqual(len(warn), 1)
 
+    def test_reversed_range_warns_and_skips(self):
+        idx, warn = self.sel("4-2", 5)
+        self.assertEqual(idx, [])
+        self.assertEqual(len(warn), 1)
+        self.assertIn("reversed", warn[0])
+
+    def test_bare_hyphen_selects_all(self):
+        idx, warn = self.sel("-", 5)
+        self.assertEqual(idx, [0, 1, 2, 3, 4])
+        self.assertEqual(warn, [])
+
 
 class SelectAndArgvTest(unittest.TestCase):
     def setUp(self):
@@ -88,6 +99,21 @@ class SelectAndArgvTest(unittest.TestCase):
     def test_select_delegates(self):
         idx, _ = self.replay.select_indices(8, select="5-,0")
         self.assertEqual(idx, [5, 6, 7, 0])
+
+    def test_empty_select_selects_nothing_not_everything(self):
+        idx, warn = self.replay.select_indices(5, select="")
+        self.assertEqual(idx, [])
+        self.assertEqual(len(warn), 1)
+
+    def test_select_none_still_selects_all(self):
+        idx, warn = self.replay.select_indices(5, select=None)
+        self.assertEqual(idx, [0, 1, 2, 3, 4])
+        self.assertEqual(warn, [])
+
+    def test_reversed_range_selects_nothing(self):
+        idx, warn = self.replay.select_indices(5, select="4-2")
+        self.assertEqual(idx, [])
+        self.assertEqual(len(warn), 1)
 
     def test_argv_first_uses_session_id(self):
         argv = self.replay.build_claude_argv("hello", "SID", True)

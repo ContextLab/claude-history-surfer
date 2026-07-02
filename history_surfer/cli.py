@@ -323,7 +323,17 @@ def cmd_export(args):
             else exporter.to_markdown(records, meta))
     if args.output:
         from pathlib import Path
-        Path(args.output).write_text(text, encoding="utf-8")
+        out_path = Path(args.output)
+        if not out_path.parent.exists():
+            print("Error: directory %r does not exist" % str(out_path.parent),
+                  file=sys.stderr)
+            return 1
+        try:
+            out_path.write_text(text, encoding="utf-8")
+        except OSError as exc:
+            print("Error: could not write %r (%s)" % (args.output, exc),
+                  file=sys.stderr)
+            return 1
         print("Exported %d prompt(s) to %s" % (len(records), args.output),
               file=sys.stderr)
     else:
@@ -417,7 +427,9 @@ def build_parser():
                         help="replay an exported file into a Claude Code session")
     sp.add_argument("file", help="a surfer-produced .json or .md export")
     g = sp.add_mutually_exclusive_group()
-    g.add_argument("--select", help="e.g. 0,3-7,10- (order = execution order)")
+    g.add_argument("--select",
+                   help="e.g. 0,3-7,10- (order = execution order); "
+                        "bare '-' selects all; empty string selects none")
     g.add_argument("--first", type=int, help="replay the first N prompts")
     g.add_argument("--last", type=int, help="replay the last N prompts")
     sp.add_argument("--dry-run", action="store_true", dest="dry_run",

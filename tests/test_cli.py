@@ -222,6 +222,47 @@ class CliTest(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 self.cli.main(["replay", path, "--select", "0", "--first", "1"])
 
+    def test_replay_empty_select_selects_nothing_not_everything(self):
+        # regression: --select "" used to fall through to "select all"
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        out_buf, err_buf = io.StringIO(), io.StringIO()
+        with redirect_stdout(out_buf), redirect_stderr(err_buf):
+            rc = self.cli.main(["replay", path, "--select", "", "--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("$ claude", out_buf.getvalue())
+        self.assertIn("Nothing to replay", err_buf.getvalue())
+
+    def test_replay_reversed_range_warns_and_selects_nothing(self):
+        # regression: an in-bounds reversed range (start > end, both valid
+        # indices) used to silently select nothing with no warning at all
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        # /proj/a has 3 prompts (indices 0-2); "2-1" is in-bounds but reversed
+        out_buf, err_buf = io.StringIO(), io.StringIO()
+        with redirect_stdout(out_buf), redirect_stderr(err_buf):
+            rc = self.cli.main(["replay", path, "--select", "2-1", "--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("$ claude", out_buf.getvalue())
+        self.assertIn("reversed", err_buf.getvalue())
+
+    def test_export_bad_output_dir_gives_clean_error(self):
+        # regression: export -o <path in nonexistent dir> used to raise an
+        # uncaught FileNotFoundError traceback instead of a clean message
+        import io
+        from contextlib import redirect_stderr
+        bad_path = os.path.join(self.tmp, "does-not-exist", "out.md")
+        err_buf = io.StringIO()
+        with redirect_stderr(err_buf):
+            rc = self.cli.main(["export", "--project", "/proj/a", "-o", bad_path])
+        self.assertEqual(rc, 1)
+        self.assertIn("does not exist", err_buf.getvalue())
+        self.assertFalse(os.path.exists(bad_path))
+
 
 if __name__ == "__main__":
     unittest.main()
