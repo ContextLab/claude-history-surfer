@@ -15,3 +15,6 @@ venv/
 
 # tooling state (not part of the project)
 .omc/
+
+# scratch demo store used for recording README media (dev/)
+dev/.demo-store/
