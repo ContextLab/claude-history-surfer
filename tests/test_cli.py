@@ -82,11 +82,27 @@ class CliTest(unittest.TestCase):
         self.assertIn("attachments:", out)
         self.assertIn("image", out)
 
-    def test_stats(self):
-        rc, out = self.run_cli(["stats"])
+    def test_stats_all(self):
+        rc, out = self.run_cli(["stats", "--all"])
         self.assertEqual(rc, 0)
         self.assertIn("-proj-a", out)
         self.assertIn("-proj-b", out)
+
+    def test_stats_current_project_default(self):
+        # default scope = current project; force one for determinism
+        rc, out = self.run_cli(["stats", "--project", "/proj/a"])
+        self.assertEqual(rc, 0)
+        self.assertIn("-proj-a", out)
+        self.assertNotIn("-proj-b", out)
+        # date span is shown so history depth is visible at a glance
+        self.assertIn("2026-06-01..2026-06-03", out)
+
+    def test_list_limit_zero_shows_all(self):
+        # --limit 0 disables the recent-N cap (full depth)
+        rc, out = self.run_cli(["list", "--all", "--limit", "0"])
+        self.assertEqual(rc, 0)
+        self.assertIn("unrelated project prompt", out)   # oldest-scope row present
+        self.assertIn("fix the vector field bug", out)
 
     def test_favorite_and_filter(self):
         rc, _ = self.run_cli(["favorite", "sessA:2"])
@@ -137,6 +153,155 @@ class CliTest(unittest.TestCase):
     def test_show_unknown_id(self):
         rc, _ = self.run_cli(["show", "nope:9"])
         self.assertEqual(rc, 1)
+
+    def test_export_markdown_stdout(self):
+        rc, out = self.run_cli(["export", "--project", "/proj/a"])
+        self.assertEqual(rc, 0)
+        self.assertIn("<!-- surfer:prompt", out)
+        self.assertIn("fix the vector field bug", out)
+
+    def test_export_json_to_file(self):
+        path = os.path.join(self.tmp, "out.json")
+        rc, _ = self.run_cli(["export", "--project", "/proj/a",
+                              "--format", "json", "-o", path])
+        self.assertEqual(rc, 0)
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(data["surfer_export"]["scope"], "project")
+        self.assertGreaterEqual(data["surfer_export"]["count"], 3)
+
+    def test_export_respects_filters(self):
+        self.run_cli(["favorite", "sessA:1"])
+        rc, out = self.run_cli(["export", "--project", "/proj/a", "--favorites"])
+        self.assertEqual(rc, 0)
+        self.assertIn("fix the vector field bug", out)
+        self.assertNotIn("add tests for the parser", out)
+
+    def test_replay_dry_run_from_export(self):
+        # export current project to a file, then dry-run replay it
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        rc, out = self.run_cli(["replay", path, "--dry-run", "--select", "0"])
+        self.assertEqual(rc, 0)
+        self.assertIn("claude", out)
+        self.assertIn("-p", out)
+
+    def test_replay_empty_selection_is_noop(self):
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        rc, out = self.run_cli(["replay", path, "--select", "999", "--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("$ claude", out)  # nothing planned/spawned
+
+    def test_replay_empty_selection_prints_message(self):
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        out_buf, err_buf = io.StringIO(), io.StringIO()
+        with redirect_stdout(out_buf), redirect_stderr(err_buf):
+            rc = self.cli.main(["replay", path, "--select", "999", "--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertIn("Nothing to replay", err_buf.getvalue())
+
+    def test_replay_dry_run_passes_session_and_model(self):
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        rc, out = self.run_cli(["replay", path, "--select", "0", "--dry-run",
+                                "--session-id", "MYSID", "--model", "claude-opus-4-8"])
+        self.assertEqual(rc, 0)
+        self.assertIn("MYSID", out)
+        self.assertIn("claude-opus-4-8", out)
+
+    def test_replay_select_and_first_mutually_exclusive(self):
+        import io
+        from contextlib import redirect_stderr
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                self.cli.main(["replay", path, "--select", "0", "--first", "1"])
+
+    def test_replay_empty_select_selects_nothing_not_everything(self):
+        # regression: --select "" used to fall through to "select all"
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        out_buf, err_buf = io.StringIO(), io.StringIO()
+        with redirect_stdout(out_buf), redirect_stderr(err_buf):
+            rc = self.cli.main(["replay", path, "--select", "", "--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("$ claude", out_buf.getvalue())
+        self.assertIn("Nothing to replay", err_buf.getvalue())
+
+    def test_replay_reversed_range_warns_and_selects_nothing(self):
+        # regression: an in-bounds reversed range (start > end, both valid
+        # indices) used to silently select nothing with no warning at all
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        path = os.path.join(self.tmp, "e.json")
+        self.run_cli(["export", "--project", "/proj/a", "--format", "json", "-o", path])
+        # /proj/a has 3 prompts (indices 0-2); "2-1" is in-bounds but reversed
+        out_buf, err_buf = io.StringIO(), io.StringIO()
+        with redirect_stdout(out_buf), redirect_stderr(err_buf):
+            rc = self.cli.main(["replay", path, "--select", "2-1", "--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("$ claude", out_buf.getvalue())
+        self.assertIn("reversed", err_buf.getvalue())
+
+    def test_export_bad_output_dir_gives_clean_error(self):
+        # regression: export -o <path in nonexistent dir> used to raise an
+        # uncaught FileNotFoundError traceback instead of a clean message
+        import io
+        from contextlib import redirect_stderr
+        bad_path = os.path.join(self.tmp, "does-not-exist", "out.md")
+        err_buf = io.StringIO()
+        with redirect_stderr(err_buf):
+            rc = self.cli.main(["export", "--project", "/proj/a", "-o", bad_path])
+        self.assertEqual(rc, 1)
+        self.assertIn("does not exist", err_buf.getvalue())
+        self.assertFalse(os.path.exists(bad_path))
+
+    def test_scope_hint_when_other_projects_match(self):
+        import io
+        from contextlib import redirect_stderr
+        err_buf = io.StringIO()
+        with redirect_stderr(err_buf):
+            rc = self.cli.main(["list", "--project", "/proj/nothing-here"])
+        self.assertEqual(rc, 0)
+        self.assertIn("add --all", err_buf.getvalue())
+
+    def test_replay_missing_file_clean_error(self):
+        import io
+        from contextlib import redirect_stderr
+        err_buf = io.StringIO()
+        with redirect_stderr(err_buf):
+            rc = self.cli.main(["replay", os.path.join(self.tmp, "nope.json"),
+                                "--dry-run"])
+        self.assertEqual(rc, 1)
+        self.assertIn("no such file", err_buf.getvalue().lower())
+
+    def test_replay_non_export_json_clean_error(self):
+        import io
+        from contextlib import redirect_stderr
+        bad = os.path.join(self.tmp, "bad.json")
+        with open(bad, "w", encoding="utf-8") as f:
+            f.write('{"prompts": "nope"}')
+        err_buf = io.StringIO()
+        with redirect_stderr(err_buf):
+            rc = self.cli.main(["replay", bad, "--dry-run"])
+        self.assertEqual(rc, 1)
+        self.assertIn("not a surfer export", err_buf.getvalue())
+
+    def test_stats_project_label_names_the_project(self):
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        out_buf, err_buf = io.StringIO(), io.StringIO()
+        with redirect_stdout(out_buf), redirect_stderr(err_buf):
+            rc = self.cli.main(["stats", "--project", "/proj/a"])
+        self.assertEqual(rc, 0)
+        self.assertIn("project -proj-a", err_buf.getvalue())
 
 
 if __name__ == "__main__":

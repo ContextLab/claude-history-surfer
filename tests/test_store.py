@@ -51,6 +51,28 @@ class StoreTest(unittest.TestCase):
         self.assertFalse(loaded[0]["favorite"])
         self.assertEqual(loaded[0]["tags"], [])
 
+    def test_is_noise_predicate(self):
+        for t in ["<task-notification>\nx</task-notification>",
+                  "[SYSTEM NOTIFICATION - NOT USER INPUT]\nfoo",
+                  "<ide_opened_file>opened README</ide_opened_file>",
+                  "<local-command-stdout>Set model</local-command-stdout>",
+                  "[Request interrupted by user]",
+                  "<command-message>history-surfer</command-message> <command-name>/x</command-name>",
+                  "<command-name>/model</command-name>\n<command-message>model</command-message>",
+                  "  <task-notification> leading whitespace"]:
+            self.assertTrue(self.store.is_noise(t), t)
+        # real prompts (incl. one that merely MENTIONS the tag) are not noise
+        for t in ["fix the bug", "how do I parse a <task-notification> tag?",
+                  "", "/model"]:
+            self.assertFalse(self.store.is_noise(t), t)
+
+    def test_load_filters_noise_by_default(self):
+        self.store.append_prompt(self._prompt(1, "real one"))
+        self.store.append_prompt(self._prompt(2, "<task-notification>bg</task-notification>"))
+        self.assertEqual([r["prompt"] for r in self.store.load_project(self.slug)],
+                         ["real one"])
+        self.assertEqual(len(self.store.load_project(self.slug, include_noise=True)), 2)
+
     def test_prefer_text_final(self):
         # provisional (stdin) first, then finalized (transcript) — final wins
         self.store.append_prompt(self._prompt(1, "placeholder", final=False,

@@ -41,6 +41,32 @@ def now_iso():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# Prefixes of harness-injected "prompts" the user never actually typed — they
+# arrive at the UserPromptSubmit hook like real prompts but are background/system
+# events. Matched only at the very start of the (stripped) message so a real
+# prompt that merely *mentions* one of these tags is never filtered.
+_NOISE_PREFIXES = (
+    "<task-notification>",         # background subagent/task completion events
+    "[SYSTEM NOTIFICATION",        # automated system banners
+    "<ide_opened_file>",           # IDE "user opened a file" context
+    "<local-command-stdout>",      # output of a slash/bash command, injected
+    "[Request interrupted by user",  # interruption markers
+    "<command-message>",           # slash-command XML expansion (clean /x form is kept)
+    "<command-name>",              # name-first variant of the same expansion
+)
+
+
+def is_noise(text):
+    """True for harness-injected pseudo-prompts the user never actually typed.
+
+    These are delivered to the UserPromptSubmit hook exactly like real prompts,
+    so without filtering they pollute the history. They are skipped at capture
+    and hidden on read by default (still recoverable via include_noise=True)."""
+    if not text:
+        return False
+    return text.lstrip().startswith(_NOISE_PREFIXES)
+
+
 def project_dir(slug):
     return config.projects_dir() / slug
 
@@ -239,7 +265,7 @@ def _apply_overlay(events):
     return o
 
 
-def load_project(slug, include_deleted=False):
+def load_project(slug, include_deleted=False, include_noise=False):
     paths = _paths(slug)
 
     prompts = {}
@@ -284,6 +310,8 @@ def load_project(slug, include_deleted=False):
 
     if not include_deleted:
         out = [m for m in out if not m["deleted"]]
+    if not include_noise:
+        out = [m for m in out if not is_noise(m.get("prompt"))]
     out.sort(key=lambda m: (m.get("ts", ""), m.get("seq") or 0))
     return out
 
@@ -304,10 +332,10 @@ def iter_slugs():
             yield child.name
 
 
-def load_all(include_deleted=False):
+def load_all(include_deleted=False, include_noise=False):
     out = []
     for slug in iter_slugs():
-        out.extend(load_project(slug, include_deleted))
+        out.extend(load_project(slug, include_deleted, include_noise))
     out.sort(key=lambda m: (m.get("ts", ""), m.get("seq") or 0))
     return out
 

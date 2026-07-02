@@ -143,6 +143,35 @@ class HookTest(unittest.TestCase):
         self.assertEqual(len(rows[0]["attachments"]), 0)
         self.assertEqual(len(rows[1]["attachments"]), 1)
 
+    def test_task_notification_skipped_and_alignment_preserved(self):
+        notif = "<task-notification>\n<task-id>abc</task-id>\ndone\n</task-notification>"
+        # a harness task-notification is NOT captured...
+        self.submit(notif)
+        self.assertEqual(self.loaded(), [])
+        # ...and a real prompt after it captures cleanly at seq 1 (the skipped
+        # notification consumed no seq)...
+        self.submit("real prompt one")
+        # ...and even though the transcript contains BOTH the notification and the
+        # real prompt as user messages, enrich skips the notification so the real
+        # prompt keeps its own text (no misalignment/corruption).
+        self.write_transcript(u_text(notif, uuid="n"),
+                              u_text("real prompt one", uuid="1"))
+        self.stop()
+        rows = self.loaded()
+        self.assertEqual([r["prompt"] for r in rows], ["real prompt one"])
+        self.assertEqual(rows[0]["seq"], 1)
+
+    def test_noise_hidden_but_recoverable_via_include_noise(self):
+        # A pre-existing captured notification (e.g. from before this fix) is
+        # hidden by default but still present when include_noise=True.
+        self.store.append_prompt({"ts": "2026-06-01T00:00:00Z", "session_id": "s1",
+                                  "cwd": self.cwd, "project_slug": self.slug, "seq": 1,
+                                  "prompt": "<task-notification>x</task-notification>",
+                                  "is_command": False, "text_final": True})
+        self.assertEqual(self.store.load_project(self.slug, include_deleted=True), [])
+        kept = self.store.load_project(self.slug, include_deleted=True, include_noise=True)
+        self.assertEqual(len(kept), 1)
+
     def test_malformed_input_never_raises(self):
         # missing keys / wrong types must not raise
         self.hook.on_user_prompt_submit({})

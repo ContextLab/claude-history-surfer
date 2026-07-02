@@ -49,6 +49,8 @@ def _handle_submit(data):
     prompt = data.get("prompt")
     if prompt is None:
         prompt = ""
+    if store.is_noise(prompt):
+        return  # harness-injected pseudo-prompt (task-notification) — not captured
     transcript_path = data.get("transcript_path")
     slug = store.slugify_cwd(cwd)
 
@@ -94,6 +96,9 @@ def _enrich(session_id, slug, cwd, transcript_path):
     last_matched = int(st.get("last_matched_seq", 0))
 
     messages, new_offset = transcript.parse_new(transcript_path, offset)
+    # Drop harness-injected pseudo-prompts (task-notifications) so they neither
+    # get synthesized nor shift the order-based alignment with captured prompts.
+    messages = [m for m in messages if not store.is_noise(m.get("text"))]
     if not messages:
         if new_offset != offset:
             st["enrich_offset"] = new_offset

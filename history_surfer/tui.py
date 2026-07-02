@@ -148,10 +148,47 @@ def run(all_projects=False):  # pragma: no cover - requires a terminal
     return curses.wrapper(_main, all_projects)
 
 
+# Attributes for rendering, populated by _colors() at startup. Falls back to
+# plain A_REVERSE/A_NORMAL if the terminal has no color support.
+_ATTRS = {}
+
+
+def _colors():  # pragma: no cover - requires a terminal
+    """Set up explicit, theme-safe color pairs so text is never white-on-white.
+
+    Body text uses the terminal's *default* colors (via use_default_colors), so
+    it inherits whatever is readable in the user's shell; the header and the
+    selected row use a fixed high-contrast pair that reads on light or dark
+    themes. Relying on A_REVERSE/default attributes alone renders unreadably on
+    some terminals — this pins the colors instead."""
+    import curses
+    try:
+        if not curses.has_colors():
+            return {}
+        curses.start_color()
+        try:
+            curses.use_default_colors()
+            normal_fg, normal_bg = -1, -1
+        except curses.error:
+            normal_fg, normal_bg = curses.COLOR_WHITE, curses.COLOR_BLACK
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_CYAN)   # bars + selection
+        curses.init_pair(2, normal_fg, normal_bg)                    # normal body text
+        return {
+            "normal": curses.color_pair(2),
+            "header": curses.color_pair(1) | curses.A_BOLD,
+            "sel": curses.color_pair(1),
+            "dim": curses.color_pair(2),
+        }
+    except curses.error:
+        return {}
+
+
 def _main(stdscr, all_projects):  # pragma: no cover - requires a terminal
     import curses
     curses.curs_set(0)
     stdscr.keypad(True)
+    _ATTRS.clear()
+    _ATTRS.update(_colors())
     b = Browser(all_projects)
 
     while True:
@@ -210,7 +247,7 @@ def _render(stdscr, b):  # pragma: no cover - requires a terminal
     scope = "all" if b.all_projects else "current"
     header = " claude-history-surfer  [%s]  %d prompt(s)%s" % (
         scope, len(b.filtered), ("  filter:%r" % b.query if b.query else ""))
-    stdscr.addnstr(0, 0, header.ljust(w), w, curses.A_REVERSE)
+    stdscr.addnstr(0, 0, header.ljust(w), w, _ATTRS.get("header", curses.A_REVERSE))
 
     if b.mode == "detail":
         _render_detail(stdscr, b, h, w)
@@ -220,7 +257,7 @@ def _render(stdscr, b):  # pragma: no cover - requires a terminal
     help_line = ("↑↓ move  enter detail  / search  f fav  t tag  e edit  "
                  "d del  u restore  a scope  D deleted  q quit")
     stdscr.addnstr(h - 1, 0, (b.status + "   " + help_line).ljust(w)[:w - 1], w - 1,
-                   curses.A_DIM)
+                   _ATTRS.get("dim", curses.A_DIM))
     stdscr.refresh()
 
 
@@ -248,7 +285,8 @@ def _render_list(stdscr, b, h, w):  # pragma: no cover
         text = (r.get("prompt") or "").replace("\n", " ")
         line = "%-10s %s %s %s" % ((r.get("session_id") or "")[:8] + ":" + str(r.get("seq")),
                                    (r.get("ts") or "")[:16], marks, text)
-        attr = curses.A_REVERSE if ri == b.idx else curses.A_NORMAL
+        attr = (_ATTRS.get("sel", curses.A_REVERSE) if ri == b.idx
+                else _ATTRS.get("normal", curses.A_NORMAL))
         stdscr.addnstr(1 + i, 0, line.ljust(w)[:w - 1], w - 1, attr)
 
 
@@ -275,7 +313,7 @@ def _render_detail(stdscr, b, h, w):  # pragma: no cover
                 a.get("kind"), a.get("ref") or a.get("media_type") or a.get("name") or "",
                 a.get("bytes")))
     for i, ln in enumerate(lines[: h - 2]):
-        stdscr.addnstr(1 + i, 0, ln[:w - 1], w - 1)
+        stdscr.addnstr(1 + i, 0, ln[:w - 1], w - 1, _ATTRS.get("normal", 0))
 
 
 def _prompt(stdscr, label, initial=""):  # pragma: no cover - requires a terminal
