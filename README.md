@@ -13,7 +13,7 @@ It captures prompts with a [Claude Code hook](https://docs.claude.com/en/docs/cl
 stores everything **locally** (nothing is ever uploaded), and gives you a CLI, an
 interactive TUI, a `/history` slash command, and a `history-surfer` skill.
 
-![CLI demo](docs/media/cli.gif)
+![TUI demo — browse, live-filter, and star prompts](docs/media/tui.gif)
 
 ---
 
@@ -117,6 +117,8 @@ and never writes to your session, so it can't interfere with a prompt.
 Scope defaults to the **current project** everywhere (search, list, show, stats,
 export); add `--all` for every project, or `--project <path>` for a specific one.
 
+![CLI demo — list, search, show](docs/media/cli.gif)
+
 | Command | What it does |
 |-|-|
 | `surfer search <query> [--all] [--regex] [--favorites] [--tag T] [--since YYYY-MM-DD] [--limit N] [--json]` | Search prompt text (and tags) |
@@ -214,9 +216,7 @@ name (or resume) the session instead of generating a fresh one.
 
 ## TUI
 
-`surfer tui` opens an interactive browser:
-
-![TUI demo](docs/media/tui.gif)
+`surfer tui` opens an interactive browser (shown at the top of this page):
 
 | Key | Action |
 |-|-|
